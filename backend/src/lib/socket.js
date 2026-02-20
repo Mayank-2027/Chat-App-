@@ -5,22 +5,26 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
- export const app = express();
+export const app = express();
 
- export const server = http.createServer(app);
+export const server = http.createServer(app);
 
+const isProduction = process.env.NODE_ENV === "production";
+const ioOptions = {};
 
-const allowedOrigins = (process.env.CORS_ORIGIN || "http://localhost:5173")
-  .split(",")
-  .map((origin) => origin.trim())
-  .filter(Boolean);
+if (!isProduction) {
+  const allowedOrigins = (process.env.CORS_ORIGIN || "http://localhost:5173")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
 
-export const io = new Server(server, {
-  cors: {
+  ioOptions.cors = {
     origin: allowedOrigins,
     credentials: true,
-  },
-});
+  };
+}
+
+export const io = new Server(server, ioOptions);
 
 const userSocketMap ={};
 
