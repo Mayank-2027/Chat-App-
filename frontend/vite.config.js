@@ -8,5 +8,15 @@ export default defineConfig({
   build: {
     outDir: "dist",
   },
-  plugins: [react(), tailwindcss(),],
+  plugins: [react(), tailwindcss()],
+  server: {
+    port: 5173,
+    proxy: {
+      "/api": {
+        target: "http://localhost:5001",
+        changeOrigin: true,
+      },
+    },
+  },
 })
+
