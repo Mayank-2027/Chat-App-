@@ -9,22 +9,23 @@ export const app = express();
 
 export const server = http.createServer(app);
 
-const isProduction = process.env.NODE_ENV === "production";
-const ioOptions = {};
+const allowedOrigins = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(",").map((o) => o.trim()).filter(Boolean)
+  : ["http://localhost:5173", "http://localhost:5001", "http://127.0.0.1:5173"];
 
-if (!isProduction) {
-  const allowedOrigins = (process.env.CORS_ORIGIN || "http://localhost:5173")
-    .split(",")
-    .map((origin) => origin.trim())
-    .filter(Boolean);
-
-  ioOptions.cors = {
-    origin: allowedOrigins,
+export const io = new Server(server, {
+  cors: {
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin) || process.env.NODE_ENV === "production") {
+        callback(null, true);
+      } else {
+        callback(null, true);
+      }
+    },
     credentials: true,
-  };
-}
+  },
+});
 
-export const io = new Server(server, ioOptions);
 
 const userSocketMap ={};
 

@@ -11,10 +11,11 @@ export const signup = async (req,res)=>{
         if(!fullName || !email || !password){
            return res.status(400).json({message:"All fields are required"})
         }
+        const normalizedEmail = email.toLowerCase().trim();
         if(password.length < 6){
            return res.status(400).json({message:"Password must be at least 6 characters"})
         }
-        const user = await User.findOne({email});
+        const user = await User.findOne({email: normalizedEmail});
         if(user){
             return res.status(400).json({success:false,message:"User already exist"})
         }
@@ -22,12 +23,12 @@ export const signup = async (req,res)=>{
         const hashPassword = await bcrypt.hash(password,salt)
 
         const newUser = new User({
-            fullName,
-            email,
+            fullName: fullName.trim(),
+            email: normalizedEmail,
             password:hashPassword,
         });
         if(newUser){
-            generateToken(newUser._id,res);
+            generateToken(newUser._id,res,req);
             await newUser.save();
 
             res.status(201).json({
@@ -51,25 +52,29 @@ export const signup = async (req,res)=>{
 export const login=async(req,res)=>{
     const {email,password}=req.body;
         try{
-            const user = await User.findOne({email});
+            if(!email || !password){
+                return res.status(400).json({message:"Email and password are required"});
+            }
+            const normalizedEmail = email.toLowerCase().trim();
+            const user = await User.findOne({email: normalizedEmail});
             if(!user){
-                return res.status(400).json({message:"Invalid Credential"});
+                return res.status(400).json({message:"Invalid Credentials"});
             }
             const isPasswordCorrect= await bcrypt.compare(password,user.password);
             if(!isPasswordCorrect){
-                return res.status(400).json({message : "Invalid Credential"})
+                return res.status(400).json({message : "Invalid Credentials"})
             }
 
-            generateToken(user._id,res);
+            generateToken(user._id,res,req);
             res.status(200).json({
                 _id:user._id,
                 fullName:user.fullName,
-             email:user.email,
-             profilePic :user.profilePic
+                email:user.email,
+                profilePic :user.profilePic
 
             })
         }catch(error){
-            console.log("Error in logic Controller ",error.message);
+            console.log("Error in login Controller ",error.message);
             res.status(500).json({success :false,message : "Internal Server Error"})
         }
     }
