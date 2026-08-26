@@ -43,7 +43,7 @@ export const signup = async (req,res)=>{
         }
        }catch(error){
         console.log("Error in signup Controller",error.message);
-        res.status(500).json({message : "Internal Server Error"});
+        res.status(500).json({message : error.message || "Internal Server Error"});
 
        }};
     
@@ -75,7 +75,7 @@ export const login=async(req,res)=>{
             })
         }catch(error){
             console.log("Error in login Controller ",error.message);
-            res.status(500).json({success :false,message : "Internal Server Error"})
+            res.status(500).json({success :false,message : error.message || "Internal Server Error"})
         }
     }
     
