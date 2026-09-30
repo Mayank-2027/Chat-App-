@@ -31,9 +31,30 @@ export const useWebRTC = () => {
   const peerConnectionRef = useRef(null);
   const localStreamRef = useRef(null);
   const remoteStreamRef = useRef(null);
-  const localVideoRef = useRef(null);
-  const remoteVideoRef = useRef(null);
+
+  // Plain refs to hold the DOM elements (used inside ontrack/cleanup)
+  const localVideoElRef = useRef(null);
+  const remoteVideoElRef = useRef(null);
+
   const pendingCandidatesRef = useRef([]);
+
+  // Callback ref for LOCAL video element.
+  // When React mounts/unmounts the <video>, this fires and binds the stream.
+  const localVideoRef = useCallback((node) => {
+    localVideoElRef.current = node;
+    if (node && localStreamRef.current) {
+      node.srcObject = localStreamRef.current;
+    }
+  }, []);
+
+  // Callback ref for REMOTE video element.
+  // When React mounts the <video>, this fires and binds any pending remote stream.
+  const remoteVideoRef = useCallback((node) => {
+    remoteVideoElRef.current = node;
+    if (node && remoteStreamRef.current) {
+      node.srcObject = remoteStreamRef.current;
+    }
+  }, []);
 
   // Cleanup helper to stop local media tracks and close peer connection
   const cleanupCall = useCallback(() => {
@@ -45,12 +66,13 @@ export const useWebRTC = () => {
     if (peerConnectionRef.current) {
       peerConnectionRef.current.ontrack = null;
       peerConnectionRef.current.onicecandidate = null;
+      peerConnectionRef.current.onconnectionstatechange = null;
       peerConnectionRef.current.close();
       peerConnectionRef.current = null;
     }
     pendingCandidatesRef.current = [];
-    if (localVideoRef.current) localVideoRef.current.srcObject = null;
-    if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
+    if (localVideoElRef.current) localVideoElRef.current.srcObject = null;
+    if (remoteVideoElRef.current) remoteVideoElRef.current.srcObject = null;
   }, []);
 
   // Initialize peer connection object
@@ -66,20 +88,30 @@ export const useWebRTC = () => {
       }
     };
 
+    // ontrack fires when the remote peer's media track arrives.
+    // This can fire BEFORE VideoCallModal has rendered the <video> element
+    // (especially on the receiver side), so we store the stream in a ref
+    // and also try to attach it to the DOM element if it already exists.
     pc.ontrack = (event) => {
-      console.log("ontrack event received:", event);
-      if (event.streams && event.streams[0]) {
-        remoteStreamRef.current = event.streams[0];
-      } else if (event.track) {
-        if (!remoteStreamRef.current) {
-          remoteStreamRef.current = new MediaStream();
-        }
-        remoteStreamRef.current.addTrack(event.track);
-      }
+      const stream =
+        event.streams && event.streams[0]
+          ? event.streams[0]
+          : (() => {
+              if (!remoteStreamRef.current) {
+                remoteStreamRef.current = new MediaStream();
+              }
+              remoteStreamRef.current.addTrack(event.track);
+              return remoteStreamRef.current;
+            })();
 
-      if (remoteVideoRef.current && remoteStreamRef.current) {
-        remoteVideoRef.current.srcObject = remoteStreamRef.current;
+      remoteStreamRef.current = stream;
+
+      // If the <video> element exists right now, bind immediately
+      if (remoteVideoElRef.current) {
+        remoteVideoElRef.current.srcObject = stream;
       }
+      // If the <video> element doesn't exist yet (VideoCallModal hasn't rendered),
+      // the callback ref (remoteVideoRef) will bind it when the element mounts.
     };
 
     pc.onconnectionstatechange = () => {
@@ -101,12 +133,14 @@ export const useWebRTC = () => {
   const getMediaStream = useCallback(async (isVideoCall) => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: isVideoCall ? { width: { ideal: 1280 }, height: { ideal: 720 } } : false,
+        video: isVideoCall
+          ? { width: { ideal: 1280 }, height: { ideal: 720 } }
+          : false,
         audio: true,
       });
       localStreamRef.current = stream;
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = stream;
+      if (localVideoElRef.current) {
+        localVideoElRef.current.srcObject = stream;
       }
       return stream;
     } catch (err) {
@@ -131,7 +165,7 @@ export const useWebRTC = () => {
     }
   }, []);
 
-  // Initiate outgoing call
+  // Initiate outgoing call (caller side)
   const startCall = useCallback(
     async (targetUser, type = "video") => {
       if (!socket || !targetUser?._id) return;
@@ -165,28 +199,37 @@ export const useWebRTC = () => {
     [socket, authUser, initiateCall, getMediaStream, createPeerConnection, resetCall, cleanupCall]
   );
 
-  // Accept incoming call
+  // Accept incoming call (receiver side)
   const acceptCall = useCallback(async () => {
     if (!socket || !incomingSignal || !callPartner) return;
 
     try {
-      const stream = await getMediaStream(callType === "video");
+      const isVideoCall = callType === "video";
+      const stream = await getMediaStream(isVideoCall);
       const targetId = callPartner._id;
       const pc = createPeerConnection(targetId);
 
+      // Add local tracks to the connection so the caller receives our media
       stream.getTracks().forEach((track) => pc.addTrack(track, stream));
 
+      // Set the caller's offer as our remote description.
+      // This may trigger ontrack asynchronously.
       await pc.setRemoteDescription(new RTCSessionDescription(incomingSignal));
       await processPendingIceCandidates();
 
+      // Create our answer and set it as local description
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
 
+      // Send the answer back to the caller via signaling
       socket.emit("accept-call", {
         to: targetId,
         signalData: answer,
       });
 
+      // Mark call as connected — this causes VideoCallModal to render.
+      // The callback ref (remoteVideoRef) will bind remoteStreamRef when the
+      // <video> element mounts, even if ontrack already fired above.
       setCallConnected();
     } catch (err) {
       console.error("Error accepting call:", err);
@@ -228,19 +271,7 @@ export const useWebRTC = () => {
     cleanupCall();
   }, [socket, callPartner, setCallEnded, cleanupCall]);
 
-  // Sync stream to video DOM elements when call status changes to connected/calling
-  useEffect(() => {
-    if (callStatus === "connected" || callStatus === "calling") {
-      if (localVideoRef.current && localStreamRef.current) {
-        localVideoRef.current.srcObject = localStreamRef.current;
-      }
-      if (remoteVideoRef.current && remoteStreamRef.current) {
-        remoteVideoRef.current.srcObject = remoteStreamRef.current;
-      }
-    }
-  }, [callStatus]);
-
-  // Toggle Mute
+  // Toggle Mute — sync audio track enabled state
   useEffect(() => {
     if (localStreamRef.current) {
       localStreamRef.current.getAudioTracks().forEach((track) => {
@@ -249,7 +280,7 @@ export const useWebRTC = () => {
     }
   }, [isMuted]);
 
-  // Toggle Camera
+  // Toggle Camera — sync video track enabled state
   useEffect(() => {
     if (localStreamRef.current) {
       localStreamRef.current.getVideoTracks().forEach((track) => {
@@ -267,6 +298,7 @@ export const useWebRTC = () => {
     };
 
     const handleCallAccepted = async ({ signalData }) => {
+      // Caller receives the answer from the receiver
       const pc = peerConnectionRef.current;
       if (pc) {
         try {
@@ -294,6 +326,7 @@ export const useWebRTC = () => {
           console.error("Error adding remote ICE candidate:", err);
         }
       } else {
+        // Queue candidates that arrive before remote description is set
         pendingCandidatesRef.current.push(candidate);
       }
     };
@@ -326,6 +359,7 @@ export const useWebRTC = () => {
     processPendingIceCandidates,
   ]);
 
+  // Expose call actions on the Zustand store for ChatHeader to use
   useEffect(() => {
     useCallStore.setState({ startCall, acceptCall, rejectCall, endCall });
   }, [startCall, acceptCall, rejectCall, endCall]);
@@ -335,7 +369,7 @@ export const useWebRTC = () => {
     acceptCall,
     rejectCall,
     endCall,
-    localVideoRef,
-    remoteVideoRef,
+    localVideoRef,   // callback ref — use directly as ref={localVideoRef}
+    remoteVideoRef,   // callback ref — use directly as ref={remoteVideoRef}
   };
 };
