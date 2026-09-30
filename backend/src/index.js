@@ -1,4 +1,5 @@
 
+import fs from "fs";
 import authRouter from "./routes/auth.route.js";
 import messageRouter from "./routes/message.route.js";
 import cors from "cors";
@@ -32,10 +33,10 @@ const allowedOrigins = process.env.CORS_ORIGIN
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin) || isProduction) {
+      if (!origin || allowedOrigins.includes(origin) || !process.env.CORS_ORIGIN) {
         callback(null, true);
       } else {
-        callback(null, true);
+        callback(new Error("Not allowed by CORS"));
       }
     },
     credentials: true,
@@ -45,8 +46,8 @@ app.use(
 app.use("/api/auth", authRouter);
 app.use("/api/messages", messageRouter);
 
-if (isProduction) {
-  // Serve only Vite build output in production.
+if (isProduction && fs.existsSync(frontendDistPath)) {
+  // Serve only Vite build output in production if present.
   app.use(express.static(frontendDistPath));
 
   // SPA fallback for non-API routes.

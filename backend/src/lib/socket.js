@@ -16,10 +16,10 @@ const allowedOrigins = process.env.CORS_ORIGIN
 export const io = new Server(server, {
   cors: {
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin) || process.env.NODE_ENV === "production") {
+      if (!origin || allowedOrigins.includes(origin) || !process.env.CORS_ORIGIN) {
         callback(null, true);
       } else {
-        callback(null, true);
+        callback(new Error("Not allowed by CORS"));
       }
     },
     credentials: true,

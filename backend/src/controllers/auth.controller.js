@@ -82,15 +82,25 @@ export const login=async(req,res)=>{
 
     
 // to logout profile
-export const logout= (req,res)=>{
-        try{
-            res.cookie("jwt","",{maxAge :0});
-            res.status(200).json({message:"Logged Out Successfully"});
-        }catch(error){
-            res.status(500).json({message:"Internal server error"});
-            console.log("Error in logout controller",error.message)
-        }
+export const logout = (req, res) => {
+    try {
+        const isHttps = req ? (req.secure || req.headers["x-forwarded-proto"] === "https") : false;
+        const isProduction = process.env.NODE_ENV === "production";
+        const sameSiteMode = (isProduction && isHttps) ? "none" : "lax";
+        const isSecure = (sameSiteMode === "none") || process.env.COOKIE_SECURE === "true" || (isProduction && isHttps);
+
+        res.cookie("jwt", "", {
+            maxAge: 0,
+            httpOnly: true,
+            sameSite: sameSiteMode,
+            secure: isSecure,
+        });
+        res.status(200).json({ message: "Logged Out Successfully" });
+    } catch (error) {
+        res.status(500).json({ message: "Internal server error" });
+        console.log("Error in logout controller", error.message);
     }
+};
 
     // to upload profile pic
  export const updateProfile = async(req,res)=>{
