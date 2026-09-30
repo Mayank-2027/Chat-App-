@@ -42,7 +42,6 @@ app.use(
   })
 );
 
-
 app.use("/api/auth", authRouter);
 app.use("/api/messages", messageRouter);
 

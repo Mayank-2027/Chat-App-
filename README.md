@@ -1,218 +1,131 @@
-# Chat App
+# Real-Time Chat App with WebRTC 1-to-1 Audio & Video Calling
 
-A full-stack real-time chat application built with the MERN stack and Socket.IO.
-The project demonstrates secure JWT authentication, real-time messaging, and modern React state management.
+A full-stack real-time chat application built using the MERN stack (MongoDB, Express, React, Node.js), Socket.io, and WebRTC (`RTCPeerConnection`).
 
 ---
 
 ## Overview
 
-This application allows users to register, log in, and exchange messages in real time. It combines REST APIs for authentication and data fetching with WebSockets for instant message delivery.
+This application allows authenticated users to exchange text and image messages in real time, as well as initiate 1-to-1 audio and video calls directly between browsers.
 
-The system follows a hybrid architecture:
-
-* REST APIs → authentication, user data, message history
-* Socket.IO → real-time communication
-* MongoDB → persistent storage
+The system architecture cleanly separates responsibilities:
+- **REST APIs**: User authentication, profile management, and message history.
+- **Socket.io**: Real-time message events, online user presence, and WebRTC signaling.
+- **WebRTC (`RTCPeerConnection`)**: Direct peer-to-peer audio/video stream exchange between clients.
+- **MongoDB**: Persistent storage for user accounts and chat messages.
 
 ---
 
 ## Features
 
-* User registration and login with JWT authentication
-* Secure password hashing using bcrypt
-* Protected backend routes
-* Real-time one-to-one messaging using Socket.IO
-* Online/offline user tracking
-* Message persistence in MongoDB
-* Responsive frontend built with React
-* Global state management (Zustand or Context depending on your implementation)
+- 💬 **Real-time Messaging**: Instant text and image sharing powered by Socket.io.
+- 📹 **1-to-1 Video Calling**: Native peer-to-peer video streaming using `RTCPeerConnection`.
+- 📞 **1-to-1 Audio Calling**: Dedicated audio-only mode.
+- 🔔 **Incoming Call Notifications**: Interactive call alerts with Accept and Reject actions.
+- 🎙️ **In-Call Media Controls**: Real-time microphone mute/unmute and camera toggle.
+- 🖼️ **Picture-in-Picture Video**: Floating local camera view alongside remote stream.
+- 🔒 **User Authentication**: Secure JWT cookie-based authentication with bcrypt password hashing.
+- 🎨 **Modern Responsive UI**: Built with React, Tailwind CSS, and DaisyUI theme system.
 
 ---
 
 ## Tech Stack
 
-**Frontend**
+**Frontend**:
+- React & Vite
+- Tailwind CSS & DaisyUI
+- Zustand (Global State Management)
+- Lucide React (Icons)
+- Socket.io Client
 
-* React
-* JavaScript (ES6+)
-* Axios
-* Zustand / Context API
-* Socket.IO Client
+**Backend**:
+- Node.js & Express.js
+- MongoDB with Mongoose
+- Socket.io Server
+- JWT (Cookie-based auth)
 
-**Backend**
-
-* Node.js
-* Express.js
-* MongoDB with Mongoose
-* JWT (JSON Web Token)
-* bcrypt
-* Socket.IO
+**Media & Signaling**:
+- WebRTC (`RTCPeerConnection`)
+- Socket.io Signaling (`call-user`, `accept-call`, `reject-call`, `ice-candidate`, `end-call`)
+- Google STUN Servers (`stun:stun.l.google.com:19302`)
 
 ---
 
-## Project Structure
+## WebRTC Signaling & Architecture Flow
 
 ```
-Chat-App/
-├── backend/
-│   ├── controllers/
-│   ├── middleware/
-│   ├── models/
-│   ├── routes/
-│   ├── socket/
-│   └── server.js
-│
-├── frontend/
-│   ├── src/
-│   │   ├── components/
-│   │   ├── pages/
-│   │   ├── store/
-│   │   └── App.jsx
-│
-└── README.md
-```
-
----
-
-## Authentication Flow
-
-### Registration
-
-1. User submits name, email, and password.
-2. Backend validates input.
-3. Password is hashed using bcrypt.
-4. User is stored in MongoDB.
-5. JWT token is generated and returned.
-6. Frontend stores token for future requests.
-
-### Login
-
-1. User submits email and password.
-2. Backend finds user and compares password.
-3. New JWT token is generated.
-4. Frontend stores token and updates auth state.
-
-### Protected Routes
-
-* Frontend sends `Authorization: Bearer <token>`
-* Backend middleware verifies JWT.
-* If valid → request proceeds.
-* If invalid → 401 Unauthorized.
-
----
-
-## Real-Time Messaging Flow
-
-1. User connects to Socket.IO server.
-2. Server maps `userId → socketId`.
-3. Sender emits `sendMessage`.
-4. Server stores message in MongoDB.
-5. Server emits message to receiver socket.
-6. Receiver UI updates instantly.
-
----
-
-## Environment Variables
-
-Create a `.env` file inside the backend folder:
-
-```
-PORT=5000
-MONGO_URI=your_mongodb_connection
-JWT_SECRET=your_super_secret_key
-CLIENT_URL=http://localhost:5173
+Caller (Client A)                 Socket.io Server                  Receiver (Client B)
+       │                                 │                                  │
+       │─── 1. getUserMedia() ──────────>│                                  │
+       │─── 2. createOffer() ───────────>│                                  │
+       │─── 3. call-user ───────────────>│                                  │
+       │    { to: B, offer, callType }   │─── 4. incoming-call ────────────>│
+       │                                 │    { from: A, offer, callType }  │
+       │                                 │                                  │
+       │                                 │<── 5. accept-call ───────────────│
+       │<── 6. call-accepted ────────────│    { to: A, answer }              │
+       │    { answer }                   │                                  │
+       │                                 │                                  │
+       │<─── 7. ICE Candidates (Bi-directional via 'ice-candidate') ───────>│
+       │                                 │                                  │
+       │════════════════ 8. Direct Peer-to-Peer Media Stream ═══════════════│
+       │                  (Audio / Video via RTCPeerConnection)             │
+       │                                 │                                  │
+       │─── 9. end-call ────────────────>│─── 10. call-ended ──────────────>│
 ```
 
 ---
 
-## Installation and Setup
+## Getting Started
 
-### 1. Clone the repository
+### Prerequisites
 
-```
-git clone https://github.com/Mayank-2027/Chat-App-.git
-cd Chat-App-
-```
+- Node.js (v18+)
+- MongoDB Connection URI
 
-### 2. Setup Backend
+### Installation
 
-```
-cd backend
-npm install
-npm run dev
-```
+1. **Clone the repository**:
+   ```bash
+   git clone https://github.com/Mayank-2027/Chat-App-.git
+   cd Chat-App-
+   ```
 
-### 3. Setup Frontend
+2. **Install Dependencies**:
+   ```bash
+   npm run build
+   ```
 
-Open a new terminal:
+3. **Configure Environment Variables**:
+   Create a `.env` file inside the `backend/` directory:
+   ```env
+   MONGODB_URL=your_mongodb_connection_string
+   PORT=5001
+   JWT_SECRET=your_super_secret_jwt_key
+   CORS_ORIGIN=http://localhost:5173
+   NODE_ENV=development
+   ```
 
-```
-cd frontend
-npm install
-npm run dev
-```
-
----
-
-## API Endpoints (Core)
-
-### Auth
-
-* `POST /api/auth/register` — Register user
-* `POST /api/auth/login` — Login user
-* `GET /api/auth/me` — Get current user
-
-### Messages
-
-* `GET /api/messages/:userId` — Fetch chat history
-* `POST /api/messages` — Send message (if REST used)
-
----
-
-## Socket Events
-
-**Client → Server**
-
-* `sendMessage`
-* `typing` (if implemented)
-
-**Server → Client**
-
-* `newMessage`
-* `onlineUsers`
-
----
-
-## Security Notes
-
-* Passwords are hashed using bcrypt.
-* JWT is used for stateless authentication.
-* Protected routes use auth middleware.
-* Sensitive keys are stored in environment variables.
-
----
-
-## Future Improvements
-
-* Socket authentication using JWT
-* Message pagination (infinite scroll)
-* Read receipts and typing indicators
-* Group chat support
-* Refresh token system
-* Rate limiting and brute-force protection
-* Redis for scalable socket handling
-* Google OAuth / Firebase login integration
+4. **Run Development Servers**:
+   - Backend:
+     ```bash
+     cd backend && npm run dev
+     ```
+   - Frontend:
+     ```bash
+     cd frontend && npm run dev
+     ```
 
 ---
 
 ## Author
 
-**Mayank Chandravanshi**
-B.Tech Information Technology
+**Mayank Chandravanshi**  
+B.Tech Information Technology  
+GitHub: [@Mayank-2027](https://github.com/Mayank-2027)
 
 ---
 
 ## License
 
-This project is for learning and educational purposes.
+This project is open-source for learning and educational purposes.

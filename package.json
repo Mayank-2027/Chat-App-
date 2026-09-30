@@ -1,7 +1,7 @@
 {
   "name": "chat-app",
   "version": "1.0.0",
-  "description": "",
+  "description": "Real-time chat application built with MERN stack, Socket.io, and WebRTC 1-to-1 audio and video calling",
   "main": "index.js",
   "scripts": {
     "postinstall": "npm install --prefix backend",

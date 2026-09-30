@@ -28,6 +28,26 @@ const MessageInput = () => {
         setImagePreview(null);
         if (fileInputRef.current) fileInputRef.current.value = "";
     };
+    const typingTimeout = useRef(null);
+
+    const handleTyping = (e) => {
+        setText(e.target.value);
+      
+        socket.emit("typing", {
+          chatId: currentChatId,
+          userId: myUserId,
+        });
+      
+        clearTimeout(typingTimeout.current);
+      
+        typingTimeout.current = setTimeout(() => {
+          socket.emit("stopTyping", {
+            chatId: currentChatId,
+            userId: myUserId,
+          });
+        }, 1200);
+      };
+
 
     const handleSendMessage = async (e) => {
         e.preventDefault();
@@ -72,8 +92,9 @@ const MessageInput = () => {
                     className="w-full input input-bordered rounded-lg input-sm sm:input-md"
                     placeholder ="Type a message"
                     value={text}
-                    onChange={(e) => setText(e.target.value)}
+                    onChange={handleTyping}
                     />
+                   
                     <input
                     type="file"
                     accept="image/*"
