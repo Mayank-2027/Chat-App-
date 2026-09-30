@@ -30,6 +30,7 @@ export const useWebRTC = () => {
 
   const peerConnectionRef = useRef(null);
   const localStreamRef = useRef(null);
+  const remoteStreamRef = useRef(null);
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
   const pendingCandidatesRef = useRef([]);
@@ -40,6 +41,7 @@ export const useWebRTC = () => {
       localStreamRef.current.getTracks().forEach((track) => track.stop());
       localStreamRef.current = null;
     }
+    remoteStreamRef.current = null;
     if (peerConnectionRef.current) {
       peerConnectionRef.current.ontrack = null;
       peerConnectionRef.current.onicecandidate = null;
@@ -65,8 +67,18 @@ export const useWebRTC = () => {
     };
 
     pc.ontrack = (event) => {
-      if (remoteVideoRef.current && event.streams[0]) {
-        remoteVideoRef.current.srcObject = event.streams[0];
+      console.log("ontrack event received:", event);
+      if (event.streams && event.streams[0]) {
+        remoteStreamRef.current = event.streams[0];
+      } else if (event.track) {
+        if (!remoteStreamRef.current) {
+          remoteStreamRef.current = new MediaStream();
+        }
+        remoteStreamRef.current.addTrack(event.track);
+      }
+
+      if (remoteVideoRef.current && remoteStreamRef.current) {
+        remoteVideoRef.current.srcObject = remoteStreamRef.current;
       }
     };
 
@@ -215,6 +227,18 @@ export const useWebRTC = () => {
     setCallEnded();
     cleanupCall();
   }, [socket, callPartner, setCallEnded, cleanupCall]);
+
+  // Sync stream to video DOM elements when call status changes to connected/calling
+  useEffect(() => {
+    if (callStatus === "connected" || callStatus === "calling") {
+      if (localVideoRef.current && localStreamRef.current) {
+        localVideoRef.current.srcObject = localStreamRef.current;
+      }
+      if (remoteVideoRef.current && remoteStreamRef.current) {
+        remoteVideoRef.current.srcObject = remoteStreamRef.current;
+      }
+    }
+  }, [callStatus]);
 
   // Toggle Mute
   useEffect(() => {
